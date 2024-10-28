@@ -67,6 +67,7 @@ class WebOsClient:
         self._volume_step_delay = None
         self._loop = asyncio.get_running_loop()
         self._media_state = None
+        self._backlight = None
 
     async def connect(self):
         """Connect to webOS TV device."""
@@ -208,6 +209,7 @@ class WebOsClient:
                 self.subscribe_inputs(self.set_inputs_state),
                 self.subscribe_sound_output(self.set_sound_output_state),
                 self.subscribe_media_foreground_app(self.set_media_state),
+                self.subscribe_backlight(self.set_backlight_state),
             }
             subscribe_tasks = set()
             for state_update in subscribe_state_updates:
@@ -268,6 +270,7 @@ class WebOsClient:
             self._hello_info = None
             self._sound_output = None
             self._media_state = None
+            self._backlight = None
 
             for callback in self.state_update_callbacks:
                 closeout.add(asyncio.create_task(callback(self)))
@@ -433,6 +436,11 @@ class WebOsClient:
         """Return media player state."""
         return self._media_state
 
+    @property
+    def backlight(self):
+        """Return current TV backlight level."""
+        return self._backlight
+
     async def register_state_update_callback(self, callback):
         """Register user state update callback."""
         self.state_update_callbacks.append(callback)
@@ -581,6 +589,13 @@ class WebOsClient:
     async def set_media_state(self, foreground_app_info):
         """Set TV media player state callback."""
         self._media_state = foreground_app_info
+
+        if self.state_update_callbacks and self.do_state_update:
+            await self.do_state_update_callbacks()
+
+    async def set_backlight_state(self, backlight):
+        """Set TV backlight level callback."""
+        self._backlight = backlight
 
         if self.state_update_callbacks and self.do_state_update:
             await self.do_state_update_callbacks()
@@ -1009,3 +1024,26 @@ class WebOsClient:
             await callback(payload)
 
         return await self.subscribe(current_media, ep.GET_MEDIA_FOREGROUND_APP_INFO)
+
+    # Picture Settings
+    async def get_backlight(self):
+        """Get current backlight."""
+
+        payload = {
+            "category":"picture",
+            "keys":[ "backlight" ]
+        }
+        response = await self.request(ep.GET_SYSTEM_SETTINGS, payload)
+        return response.get("settings", response).get("backlight")
+
+    async def subscribe_backlight(self, callback):
+        """Subscribe to backlight value."""
+
+        async def backlight(payload):
+            await callback(payload.get("settings", payload).get("backlight"))
+
+        payload = {
+            "category":"picture",
+            "keys":[ "backlight" ]
+        }
+        return await self.subscribe(backlight, ep.GET_SYSTEM_SETTINGS, payload)

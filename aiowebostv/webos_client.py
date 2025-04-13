@@ -226,6 +226,7 @@ class WebOsClient:
             self.subscribe_current_app(self.set_current_app_state),
             self.subscribe_muted(self.set_muted_state),
             self.subscribe_volume(self.set_volume_state),
+            self.subscribe_backlight(self.set_backlight_state),
             self.subscribe_apps(self.set_apps_state),
             self.subscribe_inputs(self.set_inputs_state),
             self.subscribe_sound_output(self.set_sound_output_state),
@@ -471,6 +472,11 @@ class WebOsClient:
     async def set_volume_state(self, volume: int) -> None:
         """Set TV volume level callback."""
         self.tv_state.volume = volume
+        await self.do_state_update_callbacks()
+
+    async def set_backlight_state(self, backlight: int) -> None:
+        """Set TV volume level callback."""
+        self.tv_state.backlight = backlight
         await self.do_state_update_callbacks()
 
     async def set_channels_state(self, channels: list[dict[str, Any]]) -> None:
@@ -895,6 +901,19 @@ class WebOsClient:
             await callback(payload.get("volumeStatus", payload).get("volume"))
 
         return await self.subscribe(volume, ep.GET_VOLUME)
+
+    async def subscribe_backlight(self, callback: Callable) -> dict[str, Any]:
+        """Subscribe to backlight value."""
+
+        async def backlight(payload: dict[str, Any]) -> None:
+            await callback(payload.get("settings", payload).get("backlight"))
+
+        payload = {
+            "category":"picture",
+            "keys":[ "backlight" ]
+        }
+
+        return await self.subscribe(backlight, ep.GET_SYSTEM_SETTINGS, payload)
 
     async def set_volume(self, volume: int) -> dict[str, Any]:
         """Set volume."""
